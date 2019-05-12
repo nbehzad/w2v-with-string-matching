@@ -1,0 +1,5 @@
+/home/behzad/Dropbox/Adnan/w2v/string-match-w2v/build/CMakeFiles/rebuild_cache.dir
+/home/behzad/Dropbox/Adnan/w2v/string-match-w2v/build/CMakeFiles/cpu-serial.dir
+/home/behzad/Dropbox/Adnan/w2v/string-match-w2v/build/CMakeFiles/gpu-parallel.dir
+/home/behzad/Dropbox/Adnan/w2v/string-match-w2v/build/CMakeFiles/edit_cache.dir
+/home/behzad/Dropbox/Adnan/w2v/string-match-w2v/build/CMakeFiles/string_match_w2v.dir

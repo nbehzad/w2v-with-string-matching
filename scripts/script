@@ -1,0 +1,1 @@
+./string_match_w2v -train ../samples/bible111.txt -save-vocab vocab -min-count 5
