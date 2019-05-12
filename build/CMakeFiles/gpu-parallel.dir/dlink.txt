@@ -1,1 +1,0 @@
-/usr/local/cuda-9.0/bin/nvcc    -arch=sm_30 -Xcompiler=-fPIC -Wno-deprecated-gpu-targets -shared -dlink CMakeFiles/gpu-parallel.dir/src/util/reduction.cu.o CMakeFiles/gpu-parallel.dir/src/wrappers/hor_wrapper.cu.o CMakeFiles/gpu-parallel.dir/src/wrappers/wrapper_helpers.cu.o CMakeFiles/gpu-parallel.dir/src/algos/hor.cu.o -o CMakeFiles/gpu-parallel.dir/cmake_device_link.o 

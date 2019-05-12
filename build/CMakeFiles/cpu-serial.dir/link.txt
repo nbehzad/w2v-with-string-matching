@@ -1,2 +1,0 @@
-/usr/bin/ar qc libcpu-serial.a  CMakeFiles/cpu-serial.dir/src/srlalgos/hor.c.o
-/usr/bin/ranlib libcpu-serial.a
