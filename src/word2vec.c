@@ -75,7 +75,7 @@ void ReadWord(char *word, FILE *fin) {
   while (!feof(fin)) {
     ch = fgetc(fin);
     if (ch == 13) continue;
-    if ((ch == ' ') || (ch == '\t') || (ch == '\n') || (ch == '.') || (ch == ',') || (ch == ';') || (ch == ':') || (ch == '\"') || (ch == '?') || (ch == '!')) {
+    if ((ch == ' ') || (ch == '\t') || (ch == '\n') || (ch == '.') || (ch == ',') || (ch == ';') || (ch == ':') || (ch == '\"') || (ch == '?') || (ch == '!') || ch == ')' || ch == '(') {
       if (a > 0) {
         if (ch == '\n') ungetc(ch, fin);
         break;
@@ -456,7 +456,7 @@ void findTargetWord(char *target_word) {
   int c_index = 0;
   for (a = 0; a < iter; a++) {
 	  count = 0;
-	  printf("\n The iteration %d is working...", a + 1);	
+	  //printf("\n The iteration %d is working...", a + 1);	
 	  for (unsigned long i = 0; i < params.text_size; i++) {	
 		if (params.match[i] == 1) {
 			count++;
@@ -606,6 +606,7 @@ void TrainModelWithSerial(char *target_word) {
   fseek(fi, 0, SEEK_END);
   
   long long target_word_index = SearchVocab(target_word);
+  printf("\nThe target word is %s and its size is %d, its index is %d", target_word, strlen(target_word), target_word_index);
   
   while (1) {
     if (word_count - last_word_count > 10000) {
@@ -621,6 +622,8 @@ void TrainModelWithSerial(char *target_word) {
       alpha = starting_alpha * (1 - word_count_actual / (real)(iter * train_words + 1));
       if (alpha < starting_alpha * 0.0001) alpha = starting_alpha * 0.0001;
     }
+    
+ 
     if (sentence_length == 0) {
       while (1) {
         word = ReadWordIndex(fi);
@@ -641,6 +644,7 @@ void TrainModelWithSerial(char *target_word) {
       word_count = 0;
       last_word_count = 0;
       sentence_length = 0;
+      count = 0;
       
       //changed--------------------
       rewind(fi);//fseek(fi, file_size / (long long)num_threads * (long long)id, SEEK_SET);
@@ -648,16 +652,21 @@ void TrainModelWithSerial(char *target_word) {
       continue;
     }
     
-    
-    
+  
     word = sen[sentence_position];
+    
     //changed-----------------------
-    if (word == -1 || word != target_word_index) {
+    if (word != target_word_index) {
 		sentence_position++;
-		continue;//if (word == -1) continue;
+		if (sentence_position > sentence_length) {
+		  sentence_length = 0;
+		}
+		continue;
 	} else {
 		count++;
 	}
+	
+	if (word == -1) continue;
     
     for (c = 0; c < layer1_size; c++) neu1e[c] = 0;
     next_random = next_random * (unsigned long long)25214903917 + 11;
@@ -722,7 +731,7 @@ void TrainModelWithSerial(char *target_word) {
   }
   
   printf("\nThe result of serial learning: ");
-  printf("\nThe total match for target word < %s > is %d \n", count);
+  printf("\nThe total match for target word < %s > is %d \n", target_word, count);
   printf("\nThe toatl time taken for matching and learning is %f seconds", (float)(clock()- start)/CLOCKS_PER_SEC);
   
   fclose(fi);
@@ -1074,7 +1083,7 @@ int main(int argc, char **argv) {
     expTable[i] = expTable[i] / (expTable[i] + 1);                   // Precompute f(x) = x / (x + 1)
   }
   //TrainModel();
-  //findTargetWord(target_word);
-  TrainModelWithSerial(target_word);
+  findTargetWord(target_word);
+  //TrainModelWithSerial(target_word);
   return 0;
 }
