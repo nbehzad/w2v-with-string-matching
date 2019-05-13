@@ -75,7 +75,7 @@ void ReadWord(char *word, FILE *fin) {
   while (!feof(fin)) {
     ch = fgetc(fin);
     if (ch == 13) continue;
-    if ((ch == ' ') || (ch == '\t') || (ch == '\n') || (ch == '.') || (ch == ',') || (ch == ';') || (ch == ':') || (ch == '\"') || (ch == '?') || (ch == '!') || ch == ')' || ch == '(') {
+    if ((ch == ' ') || (ch == '\t') || (ch == '\n')){// || (ch == '.') || (ch == ',') || (ch == ';') || (ch == ':') || (ch == '\"') || (ch == '?') || (ch == '!') || ch == ')' || ch == '(') {
       if (a > 0) {
         if (ch == '\n') ungetc(ch, fin);
         break;
@@ -1083,7 +1083,7 @@ int main(int argc, char **argv) {
     expTable[i] = expTable[i] / (expTable[i] + 1);                   // Precompute f(x) = x / (x + 1)
   }
   //TrainModel();
-  findTargetWord(target_word);
-  //TrainModelWithSerial(target_word);
+  //findTargetWord(target_word);
+  TrainModelWithSerial(target_word);
   return 0;
 }
