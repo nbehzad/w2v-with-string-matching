@@ -373,8 +373,26 @@ void InitialModel(){
 	if (negative > 0) InitUnigramTable();
 }
 
-void findTargetWord(char *target_word) {
+void SaveWordVectors(int with_target){
+	long a, b;
+    FILE *fo;
+	fo = fopen(output_file, "wb");
+    fprintf(fo, "%lld %lld\n", vocab_size, layer1_size);
+    for (a = 0; a < vocab_size; a++) {
+      fprintf(fo, "%s ", vocab[a].word);
+      if (with_target) {
+	  	  if (binary) for (b = 0; b < layer1_size; b++) fwrite(&syn1neg[a * layer1_size + b], sizeof(real), 1, fo);
+		  else for (b = 0; b < layer1_size; b++) fprintf(fo, "%lf ", syn1neg[a * layer1_size + b]);
+	  } else {
+		  if (binary) for (b = 0; b < layer1_size; b++) fwrite(&syn0[a * layer1_size + b], sizeof(real), 1, fo);
+		  else for (b = 0; b < layer1_size; b++) fprintf(fo, "%lf ", syn0[a * layer1_size + b]);
+	  }
+      fprintf(fo, "\n");
+    }
+    fclose(fo);
+}
 
+void TrainModelWithGPU(char *target_word) {
   char *search_target_word;
   search_target_word = (char*)malloc((strlen(target_word) + 3) * sizeof(char));
   search_target_word[0] = ' ';
@@ -580,6 +598,8 @@ void findTargetWord(char *target_word) {
   clock_t total_time = clock()- start;
   printf("\nThe toatl time taken for matching and learning is %f seconds", (float)total_time/CLOCKS_PER_SEC);
   
+  SaveWordVectors(1);
+  
   free(params.text);  
   free(params.match);
   free(params.pattern);
@@ -729,6 +749,8 @@ void TrainModelWithSerial(char *target_word) {
       continue;
     }
   }
+  
+  SaveWordVectors(0);
   
   printf("\nThe result of serial learning: ");
   printf("\nThe total match for target word < %s > is %d \n", target_word, count);
@@ -1006,8 +1028,9 @@ int ArgPos(char *str, int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-  int i;
+  int i, gpu=0;
   char target_word[MAX_STRING];
+  target_word[0] = '\0';
   if (argc == 1) {
     printf("WORD VECTOR estimation toolkit v 0.1c\n\n");
     printf("Options:\n");
@@ -1074,6 +1097,7 @@ int main(int argc, char **argv) {
   if ((i = ArgPos((char *)"-classes", argc, argv)) > 0) classes = atoi(argv[i + 1]);
   
   if ((i = ArgPos((char *)"-target-word", argc, argv)) > 0) strcpy(target_word, argv[i + 1]);
+  if ((i = ArgPos((char *)"-gpu", argc, argv)) > 0) gpu = atoi(argv[i + 1]);
   
   vocab = (struct vocab_word *)calloc(vocab_max_size, sizeof(struct vocab_word));
   vocab_hash = (int *)calloc(vocab_hash_size, sizeof(int));
@@ -1082,8 +1106,14 @@ int main(int argc, char **argv) {
     expTable[i] = exp((i / (real)EXP_TABLE_SIZE * 2 - 1) * MAX_EXP); // Precompute the exp() table
     expTable[i] = expTable[i] / (expTable[i] + 1);                   // Precompute f(x) = x / (x + 1)
   }
-  //TrainModel();
-  //findTargetWord(target_word);
-  TrainModelWithSerial(target_word);
+  
+  if(target_word[0] == '\0') {
+	  TrainModel();
+  } else {
+	  if (gpu)
+		TrainModelWithGPU(target_word);
+	  else
+		TrainModelWithSerial(target_word);
+  }
   return 0;
 }
