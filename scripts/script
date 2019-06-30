@@ -1,1 +1,4 @@
 ./string_match_w2v -train ../samples/bible111.txt -save-vocab vocab -min-count 5
+
+
+./string_match_w2v -train ../samples/bible.txt -save-vocab vocab -min-count 1 -iter 1 -gpu 1 -output w2v.txt -target-word man

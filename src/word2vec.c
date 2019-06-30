@@ -369,8 +369,12 @@ void InitialModel(){
 	//if (output_file[0] == 0) return;
 	printf("\n InitNet()");
 	InitNet();
-	printf("\n The negative sample size is %d", negative);
-	if (negative > 0) InitUnigramTable();
+	
+	if (negative > 0) {
+		printf("\n The negative sample size is %d", negative);
+		InitUnigramTable();
+		printf("\n Unigram Table was initialized.");
+	}
 }
 
 void SaveWordVectors(int with_target){
@@ -596,9 +600,9 @@ void TrainModelWithGPU(char *target_word) {
   printf("\nThe result of learning with parallel matching: ");
   printf("\nThe total match for target word <%s> is %d \n", params.pattern, count);
   clock_t total_time = clock()- start;
-  printf("\nThe toatl time taken for matching and learning is %f seconds", (float)total_time/CLOCKS_PER_SEC);
+  printf("\nThe toatl time taken for matching and learning is %f seconds \n", (float)total_time/CLOCKS_PER_SEC);
   
-  SaveWordVectors(1);
+  if(output_file[0] != 0)	SaveWordVectors(1);
   
   free(params.text);  
   free(params.match);
@@ -623,7 +627,7 @@ void TrainModelWithSerial(char *target_word) {
   clock_t now;
   real *neu1e = (real *)calloc(layer1_size, sizeof(real));  
   FILE *fi = fopen(train_file, "rb");
-  fseek(fi, 0, SEEK_END);
+  //fseek(fi, 0, SEEK_END);
   
   long long target_word_index = SearchVocab(target_word);
   printf("\nThe target word is %s and its size is %d, its index is %d", target_word, strlen(target_word), target_word_index);
@@ -689,8 +693,7 @@ void TrainModelWithSerial(char *target_word) {
 	if (word == -1) continue;
     
     for (c = 0; c < layer1_size; c++) neu1e[c] = 0;
-    next_random = next_random * (unsigned long long)25214903917 + 11;
-    
+    //next_random = next_random * (unsigned long long)25214903917 + 11;    
     b=0; //b = next_random % window;
     
 	 //train skip-gram
@@ -750,7 +753,7 @@ void TrainModelWithSerial(char *target_word) {
     }
   }
   
-  SaveWordVectors(0);
+  if(output_file[0] != 0)	SaveWordVectors(0);
   
   printf("\nThe result of serial learning: ");
   printf("\nThe total match for target word < %s > is %d \n", target_word, count);
@@ -1028,9 +1031,6 @@ int ArgPos(char *str, int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-  int i, gpu=0;
-  char target_word[MAX_STRING];
-  target_word[0] = '\0';
   if (argc == 1) {
     printf("WORD VECTOR estimation toolkit v 0.1c\n\n");
     printf("Options:\n");
@@ -1074,6 +1074,9 @@ int main(int argc, char **argv) {
     printf("./word2vec -train data.txt -output vec.txt -size 200 -window 5 -sample 1e-4 -negative 5 -hs 0 -binary 0 -cbow 1 -iter 3\n\n");
     return 0;
   }
+  int i, gpu=0;
+  char target_word[MAX_STRING];
+  target_word[0] = 0;
   output_file[0] = 0;
   save_vocab_file[0] = 0;
   read_vocab_file[0] = 0;
@@ -1107,7 +1110,7 @@ int main(int argc, char **argv) {
     expTable[i] = expTable[i] / (expTable[i] + 1);                   // Precompute f(x) = x / (x + 1)
   }
   
-  if(target_word[0] == '\0') {
+  if(target_word[0] == 0) {
 	  TrainModel();
   } else {
 	  if (gpu)
