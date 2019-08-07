@@ -2,3 +2,27 @@
 
 
 ./string_match_w2v -train ../samples/bible.txt -save-vocab vocab -min-count 1 -iter 1 -gpu 1 -output w2v.txt -target-word man
+
+
+./string_match_w2v -train /home/behzad/Projects/wiki-dump/4-wiki-dump -output /home/behzad/Projects/Adnan-output/w2v.txt -min-count 1 -iter 10 -gpu 0 -target-word sex
+
+
+
+with hs = 1
+./string_match_w2v -train /home/behzad/Projects/wiki-dump/4-wiki-dump -output /home/behzad/Projects/Adnan-output/sex-w2v-hs.txt -size 100 -threads 8 -window 5 -sample 1e-3 -negative 0 -hs 1 -binary 0 -cbow 0 -min-count 5 -iter 1 -gpu 0 -target-word sex
+
+
+original
+./string_match_w2v -train /home/behzad/Projects/wiki-dump/4-wiki-dump -output /home/behzad/Projects/Adnan-output/w2v.txt -size 100 -threads 8 -window 5 -sample 1e-3 -negative 5 -hs 0 -binary 0 -cbow 0 -min-count 1 -iter 1 -gpu 0
+
+
+
+
+with hs = 1 with evaluation words
+./string_match_w2v -train /home/behzad/Projects/wiki-dump/4-wiki-dump -eval-file ./evaluation-words.txt -output /home/behzad/Projects/Adnan-output/result-vectors/eval-w2v.txt -size 100 -threads 8 -window 5 -sample 1e-3 -negative 5 -hs 0 -binary 0 -cbow 0 -min-count 5 -iter 1 -gpu 0
+
+
+
+latest-run
+./string_match_w2v -train /home/behzad/Projects/wiki-dump/4-wiki-dump -eval-file ./evaluation-words  -output /home/behzad/Projects/Adnan-output/result-vectors/eval-w2v -size 100 -threads 8 -window 5 -sample 1e-4 -negative 5 -hs 0 -binary 0 -cbow 0 -min-count 5 -iter 1 -gpu 0
+
