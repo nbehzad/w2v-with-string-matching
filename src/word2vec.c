@@ -495,6 +495,33 @@ void read_evaluation_words()
   fclose(fin);
 }
 
+void initEvalWordVecs()
+{
+  long long a, b;
+
+  if (syn1neg != NULL)
+  {
+    printf("\n syn1neg is initializing for evaluation words \n");
+    for (a = 0; a < eval_size; a++)
+    {
+      int wordIndex = SearchVocab(evaluation_words[a]);
+      for (b = 0; b < layer1_size; b++)
+        syn1neg[wordIndex * layer1_size + b] = 0;
+    }
+  }
+
+  if (syn1 != NULL)
+  {
+    printf("\n syn1 is initializing for evaluation words \n");
+    for (a = 0; a < eval_size; a++)
+    {
+      int wordIndex = SearchVocab(evaluation_words[a]);
+      for (b = 0; b < layer1_size; b++)
+        syn1[wordIndex * layer1_size + b] = 0;
+    }
+  }
+}
+
 void InitialModel()
 {
   printf("Starting training using file %s\n", train_file);
@@ -870,6 +897,7 @@ void TrainModelWithGPU(char *target_word)
 void TrainModelWithSerial()
 {
   //InitialModel();
+  //initEvalWordVecs();
   start = clock();
 
   long long count = 0, eval_word_count = 0;
@@ -897,7 +925,7 @@ void TrainModelWithSerial()
     word_count_actual = 0;
     last_word_count = 0;
     count = 0;
-    starting_alpha = 0.0001;
+    starting_alpha = 0.025;
     rewind(fi);
     while (1)
     {
@@ -1168,8 +1196,8 @@ void *TrainModelThread(void *id)
     for (c = 0; c < layer1_size; c++)
       neu1e[c] = 0;
     next_random = next_random * (unsigned long long)25214903917 + 11;
-    //b = next_random % window;
-    b = 0;
+    b = next_random % window;
+    //b = 0;
     if (cbow)
     { //train the cbow architecture
       // in -> hidden
