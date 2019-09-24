@@ -925,7 +925,7 @@ void TrainModelWithSerial()
     word_count_actual = 0;
     last_word_count = 0;
     count = 0;
-    starting_alpha = 0.025;
+    starting_alpha = 0.0001;
     rewind(fi);
     while (1)
     {
