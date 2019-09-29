@@ -24,5 +24,5 @@ with hs = 1 with evaluation words
 
 
 latest-run
-./string_match_w2v -train /home/behzad/Projects/wiki-dump/4-wiki-dump -eval-file ./evaluation-words  -output /home/behzad/Projects/Adnan-output/result-vectors/eval-w2v -size 100 -threads 8 -window 5 -sample 1e-4 -negative 5 -hs 0 -binary 0 -cbow 0 -min-count 5 -iter 1 -gpu 0
+./string_match_w2v -train /home/behzad/Projects/wiki-dump/4-wiki-dump -eval-file ./evaluation-words  -output /home/behzad/Projects/Adnan-output/result-vectors/eval-w2v -size 100 -threads 8 -window 5 -sample 1e-4 -negative 5 -hs 0 -binary 0 -cbow 0 -min-count 5 -iter 1 -gpu 1
 

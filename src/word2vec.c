@@ -25,7 +25,9 @@
 #define MAX_EXP 6
 #define MAX_SENTENCE_LENGTH 1000
 #define MAX_CODE_LENGTH 40
+
 #define MAX_EVALUATION_WORDS 500
+#define MAX_EVAL_WORD_SIZE 25
 
 const int vocab_hash_size = 30000000; // Maximum 30 * 0.7 = 21M words in the vocabulary
 
@@ -38,7 +40,7 @@ struct vocab_word
   char *word, *code, codelen;
 };
 
-char evaluation_words[MAX_EVALUATION_WORDS][MAX_STRING / 4]; //= {"sex", "holy"};
+char evaluation_words[MAX_EVALUATION_WORDS][MAX_EVAL_WORD_SIZE]; //= {"sex", "holy"};
 char evaluation_file[MAX_STRING];
 long long eval_size = 2;
 
@@ -639,257 +641,272 @@ void SaveEvaluationVectors(int with_target, char *output_file)
   fclose(fo);
 }
 
-void TrainModelWithGPU(char *target_word)
+void addStartEndSpace(char *inStr, char *outStr)
 {
-  char *search_target_word;
-  search_target_word = (char *)malloc((strlen(target_word) + 3) * sizeof(char));
-  search_target_word[0] = ' ';
-  for (int i = 0; i < strlen(target_word); i++)
+  outStr[0] = ' ';
+  for (int i = 0; i < strlen(inStr); i++)
   {
-    search_target_word[i + 1] = target_word[i];
+    outStr[i + 1] = inStr[i];
   }
-  search_target_word[strlen(target_word) + 1] = ' ';
-  search_target_word[strlen(target_word) + 2] = '\0';
+  outStr[strlen(inStr) + 1] = ' ';
+  outStr[strlen(inStr) + 2] = '\0';
+}
 
-  InitialModel();
-  start = clock();
-
-  struct search_parameters params = {0};
+void TrainModelWithGPU()
+{
+  char search_target_word[MAX_EVAL_WORD_SIZE];
   //char *search_target_word = " man ";
-  params.pattern_size = strlen(search_target_word);
-  params.pattern = calloc(params.pattern_size + 1, sizeof(char));
-  memcpy(params.pattern, search_target_word, params.pattern_size * sizeof(char));
-
-  printf("\n pattern is %s size is %d", params.pattern, params.pattern_size);
-
+  //eval_size = 1;
+  struct search_parameters params = {0};
   params.pinned_memory = 0;
   params.gpu_reduction = 0;
   params.block_dim = 512;
   params.test_flags = GPU_TEST;
   params.search_average_runs = 1;
-  params.stride_length = params.pattern_size * 5;
+
+  params.pattern = (char *)malloc(MAX_EVAL_WORD_SIZE * sizeof(char));
 
   FILE *fi = fopen(train_file, "rb");
   fseek(fi, 0, SEEK_END);
   params.text_size = ftell(fi);
   params.text = (char *)malloc(params.text_size * sizeof(char));
-
-  printf("\n text size is %d", params.text_size);
-
+  printf("\nText size is %lu", params.text_size);
   rewind(fi);
   fread(params.text, sizeof(char), params.text_size, fi);
   fclose(fi);
   params.match = (int *)malloc(params.text_size * sizeof(int));
 
-  search_info timers = horspool_wrapper(params);
 
-  clock_t string_matching_time = clock() - start;
-  printf("\nThe time taken for string matching is %f seconds", (float)string_matching_time / CLOCKS_PER_SEC);
-
+  long long eval_word_count = 0;
   int count = 0;
-  if (params.pattern[0] == ' ')
-  {
-    for (int i = 0; i < params.pattern_size; i++)
-      params.pattern[i] = params.pattern[i + 1];
-
-    if (params.pattern[params.pattern_size - 2] == ' ')
-    {
-      params.pattern[params.pattern_size - 2] = '\0';
-      params.pattern_size = params.pattern_size - 2;
-    }
-    else
-    {
-      params.pattern_size = params.pattern_size - 1;
-    }
-  }
-
-  printf("\n pattern is %s size is %d", params.pattern, strlen(params.pattern));
-  long long target_word_index = SearchVocab(params.pattern);
-  printf("\n target word id = %d", target_word_index);
-  int *context_word_list = (int *)malloc(window * 2 * sizeof(int));
 
   long long a, b, c, d;
   long long l1, l2, target, label;
   unsigned long long next_random = 1; //(long long)id;
   real f, g;
-  //real *neu1 = (real *)calloc(layer1_size, sizeof(real));
   real *neu1e = (real *)calloc(layer1_size, sizeof(real));
+  alpha = 0.0001;
+  int *context_word_list = (int *)malloc(window * 2 * sizeof(int));
 
-  char context_word[MAX_STRING];
-  int context_word_index;
-  int c_index = 0;
-  for (a = 0; a < iter; a++)
+  printf("\n\nThe tarining is started for all eval words...");
+  while (eval_word_count < eval_size)
   {
-    count = 0;
-    //printf("\n The iteration %d is working...", a + 1);
-    for (unsigned long i = 0; i < params.text_size; i++)
+    addStartEndSpace(evaluation_words[eval_word_count], search_target_word);
+
+    params.pattern_size = strlen(search_target_word);
+    strcpy(params.pattern, search_target_word);
+    //memcpy(params.pattern, search_target_word, params.pattern_size + 1);
+    printf("\nPattern is %s size is %d", params.pattern, params.pattern_size);
+    params.stride_length = params.pattern_size * 5;
+
+    start = clock();
+    search_info timers = horspool_wrapper(params);
+    clock_t string_matching_time = clock() - start;
+    printf("\nThe time taken for string matching is %f seconds", (float)string_matching_time / CLOCKS_PER_SEC);
+
+
+    if (params.pattern[0] == ' ')
     {
-      if (params.match[i] == 1)
+      for (int i = 0; i < params.pattern_size; i++)
+        params.pattern[i] = params.pattern[i + 1];
+
+      if (params.pattern[params.pattern_size - 2] == ' ')
       {
-        count++;
-        c_index = 0;
-        for (b = 0; b < window * 2; b++)
-          context_word_list[b] = -1;
-        /*
+        params.pattern[params.pattern_size - 2] = '\0';
+        params.pattern_size = params.pattern_size - 2;
+      }
+      else
+      {
+        params.pattern_size = params.pattern_size - 1;
+      }
+    }
+
+    printf("\nPattern is %s size is %d", params.pattern, strlen(params.pattern));
+    long long target_word_index = SearchVocab(params.pattern);
+    printf("\nTarget word id = %d", target_word_index);
+    
+
+    char context_word[MAX_STRING];
+    int context_word_index;
+    int c_index = 0;
+    for (a = 0; a < iter; a++)
+    {
+      count = 0;
+      //printf("\n The iteration %d is working...", a + 1);
+      for (unsigned long i = 0; i < params.text_size; i++)
+      {
+        if (params.match[i] == 1)
+        {
+          count++;
+          c_index = 0;
+          for (b = 0; b < window * 2; b++)
+            context_word_list[b] = -1;
+          /*
 			if(0){
 			   //strncpy(tw, params.text + i, 3);
 			   memcpy(tw, params.text + i, 3);
 			   printf("\n the word is < %s >", tw);
 			}*/
-        //printf("\n left side:");
+          //printf("\n left side:");
 
-        int j = i - 1;
-        int context_count = 0;
-        int word_length = 0;
-        while (j > 0 && context_count < window)
-        {
-          if (params.text[j] == ' ' || params.text[j] == '\t' || params.text[j] == '\n' || params.text[j] == '.' || params.text[j] == ',' || params.text[j] == ';' || params.text[j] == ':' || params.text[j] == '\"' || params.text[j] == '?' || params.text[j] == '!' || params.text[j] == ')' || params.text[j] == '(')
+          int j = i - 1;
+          int context_count = 0;
+          int word_length = 0;
+          while (j > 0 && context_count < window)
           {
-            if (word_length > 0)
+            if (params.text[j] == ' ' || params.text[j] == '\t' || params.text[j] == '\n' || params.text[j] == '.' || params.text[j] == ',' || params.text[j] == ';' || params.text[j] == ':' || params.text[j] == '\"' || params.text[j] == '?' || params.text[j] == '!' || params.text[j] == ')' || params.text[j] == '(')
             {
-              context_count++;
-              strncpy(context_word, params.text + j + 1, word_length);
-              context_word[word_length] = '\0';
-              word_length = 0;
-              context_word_index = SearchVocab(context_word);
-              context_word_list[c_index++] = context_word_index;
-              //printf("\n context word <%s> id =  %d", context_word, context_word_index);
-            }
-          }
-          else
-            word_length++;
-
-          if (params.text[j] == '\n')
-          {
-            context_word_list[c_index++] = SearchVocab((char *)"</s>");
-            break;
-          }
-          j--;
-        }
-
-        //printf("\n \n right side:");
-
-        j = i + 1 + params.pattern_size + 1;
-        context_count = 0;
-        int k = 0;
-        while (j < params.text_size && context_count < window)
-        {
-          if (params.text[j] == ' ' || params.text[j] == '\t' || params.text[j] == '\n' || params.text[j] == '.' || params.text[j] == ',' || params.text[j] == ';' || params.text[j] == ':' || params.text[j] == '\"' || params.text[j] == '?' || params.text[j] == '!' || params.text[j] == ')' || params.text[j] == '(')
-          {
-            if (k > 0)
-            {
-              context_count++;
-              context_word[k] = '\0';
-              k = 0;
-              context_word_index = SearchVocab(context_word);
-              context_word_list[c_index++] = context_word_index;
-              //printf("\n context word <%s> id =  %d", context_word, context_word_index);
-            }
-          }
-          else
-            context_word[k++] = params.text[j];
-
-          if (params.text[j] == '\n')
-          {
-            context_word_list[c_index++] = SearchVocab((char *)"</s>");
-            break;
-          }
-
-          j++;
-        }
-
-        //printf("\n context array includes:");
-        //for (int i = 0; i < window * 2; i++) printf("%d, ", context_word_list[i]);
-
-        //after collecting all context words in a array, for each one we apply learning step:
-        next_random = next_random * (unsigned long long)25214903917 + 11;
-        for (b = 0; b < 2 * window; b++)
-          if (context_word_list[b] != -1)
-          {
-            l1 = context_word_list[b] * layer1_size;
-            for (c = 0; c < layer1_size; c++)
-              neu1e[c] = 0;
-            // HIERARCHICAL SOFTMAX
-            if (hs)
-              for (d = 0; d < vocab[target_word_index].codelen; d++)
+              if (word_length > 0)
               {
-                f = 0;
-                l2 = vocab[target_word_index].point[d] * layer1_size;
-                // Propagate hidden -> output
-                for (c = 0; c < layer1_size; c++)
-                  f += syn0[c + l1] * syn1[c + l2];
-                if (f <= -MAX_EXP)
-                  continue;
-                else if (f >= MAX_EXP)
-                  continue;
-                else
-                  f = expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))];
-                // 'g' is the gradient multiplied by the learning rate
-                g = (1 - vocab[target_word_index].code[d] - f) * alpha;
-                // Propagate errors output -> hidden
-                for (c = 0; c < layer1_size; c++)
-                  neu1e[c] += g * syn1[c + l2];
-                // Learn weights hidden -> output
-                for (c = 0; c < layer1_size; c++)
-                  syn1[c + l2] += g * syn0[c + l1];
+                context_count++;
+                strncpy(context_word, params.text + j + 1, word_length);
+                context_word[word_length] = '\0';
+                word_length = 0;
+                context_word_index = SearchVocab(context_word);
+                context_word_list[c_index++] = context_word_index;
+                //printf("\n context word <%s> id =  %d", context_word, context_word_index);
               }
-            // NEGATIVE SAMPLING
-            if (negative > 0)
-              for (d = 0; d < negative + 1; d++)
+            }
+            else
+              word_length++;
+
+            if (params.text[j] == '\n')
+            {
+              context_word_list[c_index++] = SearchVocab((char *)"</s>");
+              break;
+            }
+            j--;
+          }
+
+          //printf("\n \n right side:");
+
+          j = i + 1 + params.pattern_size + 1;
+          context_count = 0;
+          int k = 0;
+          while (j < params.text_size && context_count < window)
+          {
+            if (params.text[j] == ' ' || params.text[j] == '\t' || params.text[j] == '\n' || params.text[j] == '.' || params.text[j] == ',' || params.text[j] == ';' || params.text[j] == ':' || params.text[j] == '\"' || params.text[j] == '?' || params.text[j] == '!' || params.text[j] == ')' || params.text[j] == '(')
+            {
+              if (k > 0)
               {
-                if (d == 0)
+                context_count++;
+                context_word[k] = '\0';
+                k = 0;
+                context_word_index = SearchVocab(context_word);
+                context_word_list[c_index++] = context_word_index;
+                //printf("\n context word <%s> id =  %d", context_word, context_word_index);
+              }
+            }
+            else
+              context_word[k++] = params.text[j];
+
+            if (params.text[j] == '\n')
+            {
+              context_word_list[c_index++] = SearchVocab((char *)"</s>");
+              break;
+            }
+
+            j++;
+          }
+
+          //printf("\n context array includes:");
+          //for (int i = 0; i < window * 2; i++) printf("%d, ", context_word_list[i]);
+
+          //after collecting all context words in a array, for each one we apply learning step:
+          next_random = next_random * (unsigned long long)25214903917 + 11;
+          for (b = 0; b < 2 * window; b++)
+            if (context_word_list[b] != -1)
+            {
+              l1 = context_word_list[b] * layer1_size;
+              for (c = 0; c < layer1_size; c++)
+                neu1e[c] = 0;
+              // HIERARCHICAL SOFTMAX
+              if (hs)
+                for (d = 0; d < vocab[target_word_index].codelen; d++)
                 {
-                  target = target_word_index;
-                  label = 1;
-                }
-                else
-                {
-                  next_random = next_random * (unsigned long long)25214903917 + 11;
-                  target = table[(next_random >> 16) % table_size];
-                  if (target == 0)
-                    target = next_random % (vocab_size - 1) + 1;
-                  if (target == target_word_index)
+                  f = 0;
+                  l2 = vocab[target_word_index].point[d] * layer1_size;
+                  // Propagate hidden -> output
+                  for (c = 0; c < layer1_size; c++)
+                    f += syn0[c + l1] * syn1[c + l2];
+                  if (f <= -MAX_EXP)
                     continue;
-                  label = 0;
+                  else if (f >= MAX_EXP)
+                    continue;
+                  else
+                    f = expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))];
+                  // 'g' is the gradient multiplied by the learning rate
+                  g = (1 - vocab[target_word_index].code[d] - f) * alpha;
+                  // Propagate errors output -> hidden
+                  for (c = 0; c < layer1_size; c++)
+                    neu1e[c] += g * syn1[c + l2];
+                  // Learn weights hidden -> output
+                  for (c = 0; c < layer1_size; c++)
+                    syn1[c + l2] += g * syn0[c + l1];
                 }
-                l2 = target * layer1_size;
-                f = 0;
-                for (c = 0; c < layer1_size; c++)
-                  f += syn0[c + l1] * syn1neg[c + l2];
-                if (f > MAX_EXP)
-                  g = (label - 1) * alpha;
-                else if (f < -MAX_EXP)
-                  g = (label - 0) * alpha;
-                else
-                  g = (label - expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))]) * alpha;
-                for (c = 0; c < layer1_size; c++)
-                  neu1e[c] += g * syn1neg[c + l2];
-                for (c = 0; c < layer1_size; c++)
-                  syn1neg[c + l2] += g * syn0[c + l1];
-              }
-            // Learn weights input -> hidden
-            for (c = 0; c < layer1_size; c++)
-              syn0[c + l1] += neu1e[c];
-          }
-        // end for - go to another occurrence of target word
+              // NEGATIVE SAMPLING
+              if (negative > 0)
+                for (d = 0; d < negative + 1; d++)
+                {
+                  if (d == 0)
+                  {
+                    target = target_word_index;
+                    label = 1;
+                  }
+                  else
+                  {
+                    next_random = next_random * (unsigned long long)25214903917 + 11;
+                    target = table[(next_random >> 16) % table_size];
+                    if (target == 0)
+                      target = next_random % (vocab_size - 1) + 1;
+                    if (target == target_word_index)
+                      continue;
+                    label = 0;
+                  }
+                  l2 = target * layer1_size;
+                  f = 0;
+                  for (c = 0; c < layer1_size; c++)
+                    f += syn0[c + l1] * syn1neg[c + l2];
+                  if (f > MAX_EXP)
+                    g = (label - 1) * alpha;
+                  else if (f < -MAX_EXP)
+                    g = (label - 0) * alpha;
+                  else
+                    g = (label - expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))]) * alpha;
+                  for (c = 0; c < layer1_size; c++)
+                    neu1e[c] += g * syn1neg[c + l2];
+                  for (c = 0; c < layer1_size; c++)
+                    syn1neg[c + l2] += g * syn0[c + l1];
+                }
+              // Learn weights input -> hidden
+              for (c = 0; c < layer1_size; c++)
+                syn0[c + l1] += neu1e[c];
+            }
+          // end for - go to another occurrence of target word
+        }
       }
     }
-  }
+    
+    //printf("\nThe total match for target word < %s > is %d \n", evaluation_words[eval_word_count], count);
+    
+    printf("\nThe total match for target word <%s> is %d \n", params.pattern, count);
+    eval_word_count++;    
+  }//end of training each eval word
 
-  printf("\nThe result of learning with parallel matching: ");
-  printf("\nThe total match for target word <%s> is %d \n", params.pattern, count);
+
   clock_t total_time = clock() - start;
-  printf("\nThe toatl time taken for matching and learning is %f seconds \n", (float)total_time / CLOCKS_PER_SEC);
+  printf("\n\nThe result of learning with parallel matching for <%d> evaluation words: ", eval_size);
+  printf("\n****The toatl time taken for matching and learning is %f seconds ****\n", (float)total_time / CLOCKS_PER_SEC);
 
   if (output_file[0] != 0)
   {
     printf("\nword vectors are saving...");
-    SaveWordVectors(1, target_word, 1);
+    SaveEvaluationVectors(1, output_file);
   }
 
   free(params.text);
-  free(params.match);
-  free(params.pattern);
+  free(params.match); 
+  free(params.pattern); 
   free(context_word_list);
   free(neu1e);
 }
@@ -1630,10 +1647,11 @@ int main(int argc, char **argv)
   {
     printf("The initial word2vec \n");
     read_evaluation_words();
-    TrainModel();
+    //TrainModel();
     printf("\nThe model is tuned by evaluation words\n");
+    InitialModel();
     if (gpu)
-      TrainModelWithGPU(target_word);
+      TrainModelWithGPU();
     else
       TrainModelWithSerial();
   }
